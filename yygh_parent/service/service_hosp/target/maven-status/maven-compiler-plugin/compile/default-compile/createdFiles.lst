@@ -1,0 +1,6 @@
+com\yan\config\HospConfig.class
+com\yan\service\impl\HospitalSetServiceImpl.class
+com\yan\service\HospitalSetService.class
+com\yan\controller\HospitalSetController.class
+com\yan\ServiceHospApplication.class
+com\yan\mapper\HospitalSetMapper.class
