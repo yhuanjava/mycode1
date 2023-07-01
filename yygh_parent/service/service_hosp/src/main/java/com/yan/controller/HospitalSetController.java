@@ -1,120 +1,236 @@
 package com.yan.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yan.service.HospitalSetService;
 import com.yan.yygh.common.result.R;
 import com.yan.yygh.model.hosp.HospitalSet;
 import com.yan.yygh.vo.hosp.HospitalSetQueryVo;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiModelProperty;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
-import net.sf.jsqlparser.statement.select.Limit;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-import javax.websocket.server.PathParam;
-import java.util.Date;
 import java.util.List;
 
-@Api(description = "医院设置接口")
+
+@CrossOrigin //处理跨域问题
+//原则：后台管理系统使用的接口，通常/admin开头
+@Api(description = "医院设置接口文档")
 @RestController
-@CrossOrigin     //允许跨域访问
-@RequestMapping("/admin/hosp/hospitalSet")
+@RequestMapping("/admin/hosp/hospset")
+
+@Slf4j //lombok下的一个日志注解，在当前类中就可以直接使用log对象调用其方法，打印不同级别的日志
 public class HospitalSetController {
+
     @Autowired
-    private HospitalSetService hospitalSetService;
+    HospitalSetService hospitalSetService;
 
-    //查询所有医院设置
-    @ApiOperation(value = "医院设置列表")
-    @GetMapping("/findAll")
-    public R findAll(){
-        List<HospitalSet> list = hospitalSetService.list();
-        return R.ok().data("list",list);
+
+    //医院设置的批量删除  示例数据： [ 4,6,7 ]
+    @ApiOperation(value = "根据id删除医院设置（逻辑删除）")
+    @DeleteMapping("deleteByIds")
+    public R deleteByIds(@ApiParam(name = "ids", value = "医院设置的id集合") @RequestBody List<Long> ids) {
+        boolean b = hospitalSetService.removeByIds(ids);
+        return b ? R.ok().message("批量删除成功") : R.error().message("批量删除失败");
     }
 
-    @ApiOperation("医院设置删除功能")
-    @DeleteMapping("/{id}")
-    public R removeById(@ApiParam(name = "id" ,value = "医生ID",required = true) @PathVariable Long id){
-        hospitalSetService.removeById(id);
-        return R.ok();
+
+    //修改医院设置的信息（根据id修改医院设置）
+    //参数示例：
+    /*{
+        "id":7, //必选参数
+        "contactsName":"李四"
+    }*/
+    @PostMapping("updateHospset")
+    public R updateHospset(@RequestBody HospitalSet hospitalSet) {
+
+        //可以校验是否有id
+        Long id = hospitalSet.getId();
+        if (id == null) {
+            return R.error().message("id为空");
+        }
+
+//        hospitalSet.setUpdateTime(new Date());
+
+        boolean b = hospitalSetService.updateById(hospitalSet);
+
+        return b ? R.ok().message("修改成功") : R.error().message("修改失败");
     }
 
-    @PostMapping("{page}/{limit}")
-    public R pageQuery(@PathVariable Integer page,
-                       @PathVariable Integer limit,
-                       @RequestBody HospitalSetQueryVo hospitalSetQueryVo){
 
-        //1、分页对象
-        Page<HospitalSet> hospitalSetPage = new Page<>(page, limit);
+    //医院设置列表的条件+分页查询（pageNum，pageSize  分页从1开始）  查询条件：医院名称模糊查询 , 医院编号等值查询  { hosname:xxx,hoscode:xx }
+    //返回值 ： { data:{total:10,rows:[当前页的结果集]} }
+    @PostMapping("/{pageNum}/{pageSize}")
+    public R pageQuery(@PathVariable Integer pageNum, @PathVariable Integer pageSize, @RequestBody HospitalSetQueryVo hospitalSetQueryVo) {
 
-        //构建查询条件
+        //1、创建page分页对象(如果传入的小于1的值，默认也是从1开始)
+        Page<HospitalSet> hospitalSetPage = new Page<>(pageNum, pageSize);
+
+        //2、封装查询条件
         QueryWrapper<HospitalSet> queryWrapper = new QueryWrapper<>();
         String hoscode = hospitalSetQueryVo.getHoscode();
         String hosname = hospitalSetQueryVo.getHosname();
 
-        if (!StringUtils.isEmpty(hoscode)){
-            queryWrapper.eq("hoscode",hoscode);
+        //where hosname like ?  and hoscode = ?
+        //where hosname like null  and hoscode = null  必须动态sql拼接（先判空，如果不为空，再拼接条件）
+        if (!StringUtils.isEmpty(hoscode)) { //注意： ！ 不为空
+            queryWrapper.eq("hoscode", hoscode);//表中的列名
         }
-        if (!StringUtils.isEmpty(hosname)){
-            queryWrapper.eq("hosname",hosname);
+        if (!StringUtils.isEmpty(hosname)) {
+            queryWrapper.like("hosname", hosname);
         }
-        hospitalSetService.page(hospitalSetPage,queryWrapper);
 
-        //返回状态值
-        List<HospitalSet> records = hospitalSetPage.getRecords();
-        long total = hospitalSetPage.getTotal();
-        return R.ok().data("row",records).data("totol",total);
+        //3、调用service中page方法（注意：配置分页插件PaginationInterceptor）
+        hospitalSetService.page(hospitalSetPage, queryWrapper);
+
+
+        //4、从hospitalSetPage对象中解析返回值
+        List<HospitalSet> records = hospitalSetPage.getRecords();//当前页的结果集
+        long total = hospitalSetPage.getTotal();//总记录数（前端的分页控件需要使用总记录数）
+
+
+        return R.ok().data("total", total).data("rows", records);
     }
 
-    @ApiOperation(value = "根据id查询医院设置")
-    @GetMapping("/getHospSet/{id}")
-    public R getById(@ApiParam(name = "id",value = "医院id",required = true) @PathVariable String id){
+
+    //需求：医院设置的锁定和解锁。修改status字段值，status的取值范围0和1； 该接口中需要校验取值范围
+    //参数：医院设置的id +  希望修改成的状态值
+    @GetMapping("lockHospset/{id}/{status}")
+    public R updateStatus(@PathVariable Long id, @PathVariable Integer status) {
+
+        //1、根据id查询到该医院设置，并且判断是否存在（未开通医院设置） 返回 message=未开通医院设置 code=20001
         HospitalSet hospitalSet = hospitalSetService.getById(id);
-        return R.ok().data("hospitalSet",hospitalSet);
-    }
-
-    @ApiOperation(value = "根据id更新数据")
-    @PostMapping("/updateHospSet")
-    public R updateById(@ApiParam(name = "id",value = "医院设置对象",required = true) @PathVariable HospitalSet hospitalSet){
-        boolean updateById = hospitalSetService.updateById(hospitalSet);
-        return R.ok();
-    }
-
-    @ApiOperation(value = "批量删除")
-    @DeleteMapping("/batchRemove")
-    public R batchRemoveHospitalSet(@RequestBody List<Long> idList){
-        hospitalSetService.removeByIds(idList);
-        return R.ok();
-    }
-
-
-    @ApiOperation(value = "锁定和解锁")
-    @GetMapping("lockHospitalSet/{id}/{status}")
-    public R lockHospitalSet(@PathVariable Long id,
-                             @PathVariable Integer status){
-        //1、检查status的值是否合法
-        if (status!=0||status!=1){
-            return R.error().message("状态值只能为0或者1");
+        if (hospitalSet == null) {
+            return R.error().message("未开通医院设置");
         }
-        //2、根据id查询医院设置对象
-        //原则：获取（查询）一个数据，之后使用这个数据之前，进行判空的校验
-        HospitalSet hospitalSet = hospitalSetService.getById(id);
-        //3、判断医院设置对象是否存在
-        if (hospitalSet==null){
-            return R.error().message("该医院设置不存在");
+
+        //2、判断status的取值范围，如果status不是0或1，返回message=status取值范围不正确  code=20001
+        if (status != 1 && status != 0) {
+            return R.error().message("status取值范围不正确");
         }
-        //4、判断是否重复操作 ==判断两个数字是否相等，如果Integer类型，建议equals去比较，基本数据类型使用==比较
-        if (hospitalSet.getStatus().intValue()==status.intValue()){
-            return R.error().message(status==0?"请勿重复锁定":"请勿重复解锁");
+
+        //3、判断是否重复操作，如果status原来是1，现在要改成1，这就是重复操作，返回message=重复操作  code=20001
+        if (status == hospitalSet.getStatus()) {
+            return R.error().message("重复操作");
         }
-        //5、实现更新status
+
+        //4、更新
         hospitalSet.setStatus(status);
-        //hospitalSet.setUpdateTime(null);
-        hospitalSet.setUpdateTime(new Date());
         boolean b = hospitalSetService.updateById(hospitalSet);
-        return b? R.ok(): R.error();
+
+        return b ? R.ok() : R.error();
     }
+
+
+    //需求：开通医院设置（其实就添加）  ， 如果某个医院想入驻到尚医通平台，必须先由管理员在后台系统为该医院开通权限；信息由医院端提供，管理员负责录入
+    // 需要提供的数据：
+    //以下是北京协和医院的示例数据
+    /*{
+            "apiUrl": "http://127.0.0.1:9998", 医院端的接口地址（提交挂号订单时，会去调用医院端的接口）
+            "contactsName": "张三",
+            "contactsPhone": "13101102345",
+            "hoscode": "10000", //医院编号，具备唯一性
+            "hosname": "北京协和医院",//医院名称
+            "signKey": "1" //医院端的签名
+    }*/
+    //要求：请求方式：post  路径：saveHospset  参数：json { apiUrl contactsName hoscode ... }  医院设置的status状态默认为1（正常状态）
+
+    @ApiOperation(value = "开通医院设置")
+    @PostMapping("saveHospset")
+    public R saveHospset(@ApiParam(name = "hospitalSet", value = "医院设置信息") @RequestBody HospitalSet hospitalSet) {
+
+        hospitalSet.setStatus(1);//0-医院权限锁定  1-正常
+        boolean save = hospitalSetService.save(hospitalSet);
+
+        return save ? R.ok().message("开通成功") : R.error().message("开通失败");
+    }
+
+
+    /**
+     * 查询所有医院设置
+     *
+     * @return {
+     * "code": 20000,
+     * "message": "操作成功",
+     * "success": true,
+     * "data": {
+     * "list": []
+     * }
+     * }
+     */
+    @GetMapping("/findAll")
+    public R findAll() {
+
+        //不同的级别，表示不同的严重程度
+        log.info("我是一条info级别的日志");
+        log.error("我是一条error级别的日志");
+        log.warn("我是一条warn级别的日志");
+
+
+        List<HospitalSet> list = null;
+//        try {
+        list = hospitalSetService.list();
+
+        if(list==null || list.isEmpty()){
+            log.info("医院设置列表为空");
+        }
+
+//        int i = 1 / 0;
+
+//        String str = null;
+//        if(StringUtils.isEmpty(str)){
+//            throw new YyghException(20001,"字符串为空");
+//        }
+//        str.length();
+//        } catch (Exception e) {
+////            e.printStackTrace();
+//            return R.error().message(e.getMessage());
+//        }
+
+        return R.ok().data("list", list);
+    }
+
+
+    /**
+     * 根据id查询某个医院设置
+     *
+     * @param id
+     * @return { code:xx,message:'',success:'',data:{item: {医院设置对象} } }
+     */
+    @GetMapping("{id}")
+    public R findById(@PathVariable Long id) {
+        HospitalSet hospitalSet = hospitalSetService.getById(id);
+
+//        R r = new R();
+//        r.setCode(ResultCode.SUCCESS);
+//        r.setSuccess(true);
+//        r.setMessage("操作成功");
+//        r.getData().put("item",hospitalSet);//前提是R中的data必须先初始化
+
+//        return R.ok().data("item",hospitalSet).data("aa","1").data("bb","2");
+//        Map<String,Object> map = new HashMap<>();
+//        map.put("aa",1);
+//        map.put("bb",2);
+//        map.put("item",hospitalSet);
+
+        return R.ok().message("根据id查询成功").data("item", hospitalSet);
+    }
+
+
+    /**
+     * 根据id删除某个医院设置
+     *
+     * @param id
+     * @return
+     */
+    @DeleteMapping("{id}")
+    public R deleteById(@PathVariable Long id) {
+        boolean b = hospitalSetService.removeById(id);
+        return b ? R.ok().message("根据id删除成功") : R.error().message("根据id删除失败");
+    }
+
 }
