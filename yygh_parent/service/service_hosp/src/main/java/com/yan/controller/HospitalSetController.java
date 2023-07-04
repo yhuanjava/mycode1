@@ -166,9 +166,9 @@ public class HospitalSetController {
     public R findAll() {
 
         //不同的级别，表示不同的严重程度
-        log.info("我是一条info级别的日志");
-        log.error("我是一条error级别的日志");
-        log.warn("我是一条warn级别的日志");
+       // log.info("我是一条info级别的日志");
+       // log.error("我是一条error级别的日志");
+       // log.warn("我是一条warn级别的日志");
 
 
         List<HospitalSet> list = null;
