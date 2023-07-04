@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/yygh_parent/common/rabbit_util/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/yygh_parent/common/service_util/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/common/service_utils/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/common/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/common/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/model/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/yygh_parent/service/service-cmn/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/yygh_parent/service/service_cmn/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/yygh_parent/service/service_cmn/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/service/service_hosp/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/yygh_parent/service/service_user/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/yygh_parent/service/untitled/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/yygh_parent/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/../../maven/Repository/Repository/org/springframework/boot/spring-boot-starter-parent/2.2.1.RELEASE/src/main/resources" charset="UTF-8" />
